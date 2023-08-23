@@ -132,29 +132,39 @@ fn to_time_vec_msms(dur: &Duration) -> Vec<Option<String>> {
 impl NanoEternity for Duration {
     fn humanize(&self) -> String {
         to_time_vec_msusns(self).into_iter()
-            .filter(|x| x.is_some())
+            .filter(|x| x.is_ok())
             .map(|x| x.unwrap())
             .collect::<Vec<String>>()
             .join(" ").to_string()
     }
 
     fn robotize(&self) -> String {
-        "bar".to_string()
+        to_time_vec_msusns(self).into_iter()
+            .map(unwrap_result)
+            .collect::<Vec<String>>()
+            .join(" ").to_string()
     }
 }
 
-fn to_time_vec_msusns(dur: &Duration) -> Vec<Option<String>> {
+fn unwrap_result(x: Result<String, String>) -> String {
+    match x {
+        Ok(x) => x,
+        Err(x) => x,
+    }
+}
+
+fn to_time_vec_msusns(dur: &Duration) -> Vec<Result<String, String>> {
     let frac_units = FRAC_UNITS;
 
     let mut accum = dur.subsec_nanos();
-    let mut res: Vec<Option<String>> = Vec::new();
+    let mut res: Vec<Result<String, String>> = Vec::new();
     for unit in frac_units.iter() {
         let t = accum / unit.interval;
         if t > 0 {
             accum -= t * unit.interval;
-            res.push(Some(format!("{}{}", t, unit.suffix)));
+            res.push(Ok(format!("{}{}", t, unit.suffix)));
         } else {
-            res.push(None);
+            res.push(Err(format!("0{}", unit.suffix)));
         }
     }
 
@@ -394,7 +404,7 @@ mod tests {
         #[test]
         fn nanos() {
             let duration = Duration::from_nanos(2134);
-            let exp = vec![None, Some("2us".to_string()), Some("134ns".to_string())];
+            let exp = vec![Err("0ms".to_string()), Ok("2us".to_string()), Ok("134ns".to_string())];
             assert_eq!(exp, to_time_vec_msusns(&duration));
         }
 
@@ -406,9 +416,16 @@ mod tests {
         }
 
         #[test]
+        fn nanos_bot() {
+            let duration = Duration::from_nanos(2134);
+            let exp = "0ms 2us 134ns";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn micros() {
             let duration = Duration::from_nanos(20_134);
-            let exp = vec![None, Some("20us".to_string()), Some("134ns".to_string())];
+            let exp = vec![Err("0ms".to_string()), Ok("20us".to_string()), Ok("134ns".to_string())];
             assert_eq!(exp, to_time_vec_msusns(&duration));
         }
 
@@ -420,9 +437,16 @@ mod tests {
         }
 
         #[test]
+        fn micros_bot() {
+            let duration = Duration::from_nanos(20_134);
+            let exp = "0ms 20us 134ns";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn millis() {
             let duration = Duration::from_nanos(2_134_567);
-            let exp = vec![Some("2ms".to_string()), Some("134us".to_string()), Some("567ns".to_string())];
+            let exp = vec![Ok("2ms".to_string()), Ok("134us".to_string()), Ok("567ns".to_string())];
             assert_eq!(exp, to_time_vec_msusns(&duration));
         }
 
@@ -434,9 +458,16 @@ mod tests {
         }
 
         #[test]
+        fn millis_bot() {
+            let duration = Duration::from_nanos(2_134_567);
+            let exp = "2ms 134us 567ns";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn secs_are_dropped() {
             let duration = Duration::from_nanos(2_134_567_789);
-            let exp = vec![Some("134ms".to_string()), Some("567us".to_string()), Some("789ns".to_string())];
+            let exp = vec![Ok("134ms".to_string()), Ok("567us".to_string()), Ok("789ns".to_string())];
             assert_eq!(exp, to_time_vec_msusns(&duration));
         }
 
@@ -445,6 +476,13 @@ mod tests {
             let duration = Duration::from_nanos(2_134_567_789);
             let exp = "134ms 567us 789ns";
             assert_eq!(exp, &duration.humanize());
+        }
+
+        #[test]
+        fn secs_are_dropped_bot() {
+            let duration = Duration::from_nanos(2_134_567_789);
+            let exp = "134ms 567us 789ns";
+            assert_eq!(exp, &duration.robotize());
         }
     }
 }
