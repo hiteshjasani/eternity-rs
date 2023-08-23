@@ -6,6 +6,12 @@ pub trait Eternity {
     fn robotize(&self) -> String;
 }
 
+/// Represents time periods ranging from nanoseconds to milliseconds
+pub trait NanoEternity {
+    fn humanize(&self) -> String;
+    fn robotize(&self) -> String;
+}
+
 /// Represents time periods ranging from milliseconds to minutes
 pub trait ShortEternity {
     fn humanize(&self) -> String;
@@ -34,16 +40,11 @@ impl Eternity for Duration {
 }
 
 fn to_time_vec(dur: &Duration) -> Vec<Option<String>> {
-    static UNITS: [Unit; 4] = [
-        Unit { suffix: "d", interval: (24 * 3600) },
-        Unit { suffix: "h", interval: 3600 },
-        Unit { suffix: "m", interval: 60 },
-        Unit { suffix: "s", interval: 1 },
-    ];
+    let units = WHOLE_UNITS;
 
     let mut accum = dur.as_secs();
     let mut res: Vec<Option<String>> = Vec::new();
-    for unit in UNITS.iter() {
+    for unit in units.iter() {
         let t = accum / unit.interval;
         if t > 0 {
             accum -= t * unit.interval;
@@ -75,15 +76,11 @@ impl MediumEternity for Duration {
 }
 
 fn to_time_vec_hms(dur: &Duration) -> Vec<Option<String>> {
-    static UNITS: [Unit; 3] = [
-        Unit { suffix: "h", interval: 3600 },
-        Unit { suffix: "m", interval: 60 },
-        Unit { suffix: "s", interval: 1 },
-    ];
+    let units = &WHOLE_UNITS[1..4];
 
     let mut accum = dur.as_secs();
     let mut res: Vec<Option<String>> = Vec::new();
-    for unit in UNITS.iter() {
+    for unit in units.iter() {
         let t = accum / unit.interval;
         if t > 0 {
             accum -= t * unit.interval;
@@ -111,14 +108,11 @@ impl ShortEternity for Duration {
 }
 
 fn to_time_vec_msms(dur: &Duration) -> Vec<Option<String>> {
-    static UNITS: [Unit; 2] = [
-        Unit { suffix: "m", interval: 60 },
-        Unit { suffix: "s", interval: 1 },
-    ];
+    let units = &WHOLE_UNITS[2..4];
 
     let mut accum = dur.as_secs();
     let mut res: Vec<Option<String>> = Vec::new();
-    for unit in UNITS.iter() {
+    for unit in units.iter() {
         let t = accum / unit.interval;
         if t > 0 {
             accum -= t * unit.interval;
@@ -135,12 +129,63 @@ fn to_time_vec_msms(dur: &Duration) -> Vec<Option<String>> {
     res
 }
 
+impl NanoEternity for Duration {
+    fn humanize(&self) -> String {
+        to_time_vec_msusns(self).into_iter()
+            .filter(|x| x.is_some())
+            .map(|x| x.unwrap())
+            .collect::<Vec<String>>()
+            .join(" ").to_string()
+    }
+
+    fn robotize(&self) -> String {
+        "bar".to_string()
+    }
+}
+
+fn to_time_vec_msusns(dur: &Duration) -> Vec<Option<String>> {
+    let frac_units = FRAC_UNITS;
+
+    let mut accum = dur.subsec_nanos();
+    let mut res: Vec<Option<String>> = Vec::new();
+    for unit in frac_units.iter() {
+        let t = accum / unit.interval;
+        if t > 0 {
+            accum -= t * unit.interval;
+            res.push(Some(format!("{}{}", t, unit.suffix)));
+        } else {
+            res.push(None);
+        }
+    }
+
+    res
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Unit<'a> {
     suffix: &'a str,
     interval: u64,
 }
+
+static WHOLE_UNITS: [Unit; 4] = [
+    Unit { suffix: "d", interval: (24 * 3600) },
+    Unit { suffix: "h", interval: 3600 },
+    Unit { suffix: "m", interval: 60 },
+    Unit { suffix: "s", interval: 1 },
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct FracUnit<'a> {
+    suffix: &'a str,
+    interval: u32,
+}
+
+static FRAC_UNITS: [FracUnit; 3] = [
+    FracUnit { suffix: "ms", interval: 1_000_000 },
+    FracUnit { suffix: "us", interval: 1_000 },
+    FracUnit { suffix: "ns", interval: 1 },
+];
 
 #[cfg(test)]
 mod tests {
@@ -338,6 +383,67 @@ mod tests {
         fn days_human() {
             let duration = Duration::from_secs((24 * 3600) + 3672);
             let exp = "1501m 12s";
+            assert_eq!(exp, &duration.humanize());
+        }
+    }
+
+    mod nano_eternity {
+        use std::time::Duration;
+        use super::super::{NanoEternity, to_time_vec_msusns};
+
+        #[test]
+        fn nanos() {
+            let duration = Duration::from_nanos(2134);
+            let exp = vec![None, Some("2us".to_string()), Some("134ns".to_string())];
+            assert_eq!(exp, to_time_vec_msusns(&duration));
+        }
+
+        #[test]
+        fn nanos_human() {
+            let duration = Duration::from_nanos(2134);
+            let exp = "2us 134ns";
+            assert_eq!(exp, &duration.humanize());
+        }
+
+        #[test]
+        fn micros() {
+            let duration = Duration::from_nanos(20_134);
+            let exp = vec![None, Some("20us".to_string()), Some("134ns".to_string())];
+            assert_eq!(exp, to_time_vec_msusns(&duration));
+        }
+
+        #[test]
+        fn micros_human() {
+            let duration = Duration::from_nanos(20_134);
+            let exp = "20us 134ns";
+            assert_eq!(exp, &duration.humanize());
+        }
+
+        #[test]
+        fn millis() {
+            let duration = Duration::from_nanos(2_134_567);
+            let exp = vec![Some("2ms".to_string()), Some("134us".to_string()), Some("567ns".to_string())];
+            assert_eq!(exp, to_time_vec_msusns(&duration));
+        }
+
+        #[test]
+        fn millis_human() {
+            let duration = Duration::from_nanos(2_134_567);
+            let exp = "2ms 134us 567ns";
+            assert_eq!(exp, &duration.humanize());
+        }
+
+        #[test]
+        fn secs_are_dropped() {
+            let duration = Duration::from_nanos(2_134_567_789);
+            let exp = vec![Some("134ms".to_string()), Some("567us".to_string()), Some("789ns".to_string())];
+            assert_eq!(exp, to_time_vec_msusns(&duration));
+        }
+
+        #[test]
+        fn secs_are_dropped_human() {
+            let duration = Duration::from_nanos(2_134_567_789);
+            let exp = "134ms 567us 789ns";
             assert_eq!(exp, &duration.humanize());
         }
     }

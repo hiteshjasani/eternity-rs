@@ -10,7 +10,7 @@ Rust does not implement `Display` for `Duration`. Even if it did, usage would va
 
 ```
 use std::time::Duration;
-use eternity_rs::Eternity;
+use eternity-rs::Eternity;
 
 let duration = Duration::from_secs(3672);
 println!("{}", &duration.humanize());
