@@ -1,3 +1,17 @@
+//! Human and bot readable durations
+//!
+//! Provides human and bot readable formatting of `std::time::Duration`.
+//! There are several extension traits to choose from.  Many limit the
+//! time period over which they report for conciseness.  But you can also
+//! use the [Eternity] trait for general purpose.
+//!
+//! # Time Periods
+//! * [Eternity] - general purpose ranging from milliseconds to days
+//! * [MediumEternity] - ranges from seconds to hours
+//! * [ShortEternity] - ranges from milliseconds to minutes
+//! * [NanoEternity] - ranges from nanoseconds to milliseconds
+//!
+
 use std::time::Duration;
 
 /// Represents time periods ranging from milliseconds to days

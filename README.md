@@ -1,8 +1,6 @@
 # eternity-rs
 
-Answering the question, "how long did that take?", in a form readable by humans and bots alike.
-
-STATUS: this crate is still in development, but there are parts that are working ... see the tests.
+Answering the question, "how long did that take?", formattable to be readable by humans and bots.
 
 ## Motivation
 
@@ -17,12 +15,18 @@ use eternity_rs::Eternity;
 let duration = Duration::from_secs(3672);
 println!("{}", &duration.humanize());
 => 1h 1m 12s
+println!("{}", &duration.robotize());
+=> 0d 1h 1m 12s 0ms
 
 let duration = Duration::from_secs(3622);
 println!("{}", &duration.humanize());
 => 1h 22s
+println!("{}", &duration.robotize());
+=> 0d 1h 0m 22s 0ms
 
 let duration = Duration::from_secs(127);
 println!("{}", &duration.humanize());
 => 2m 7s
+println!("{}", &duration.robotize());
+=> 0d 0h 2m 7s 0ms
 ```
