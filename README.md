@@ -2,6 +2,7 @@
 
 Answering the question, "how long did that take?", in a form readable by humans and bots alike.
 
+STATUS: this crate is still in development, but there are parts that are working ... see the tests.
 
 ## Motivation
 
