@@ -28,34 +28,37 @@ pub trait MediumEternity {
 impl Eternity for Duration {
     fn humanize(&self) -> String {
         to_time_vec(self).into_iter()
-            .filter(|x| x.is_some())
+            .filter(|x| x.is_ok())
             .map(|x| x.unwrap())
             .collect::<Vec<String>>()
             .join(" ").to_string()
     }
 
     fn robotize(&self) -> String {
-        "bar".to_string()
+        to_time_vec(self).into_iter()
+            .map(unwrap_result)
+            .collect::<Vec<String>>()
+            .join(" ").to_string()
     }
 }
 
-fn to_time_vec(dur: &Duration) -> Vec<Option<String>> {
+fn to_time_vec(dur: &Duration) -> Vec<Result<String, String>> {
     let units = WHOLE_UNITS;
 
     let mut accum = dur.as_secs();
-    let mut res: Vec<Option<String>> = Vec::new();
+    let mut res: Vec<Result<String, String>> = Vec::new();
     for unit in units.iter() {
         let t = accum / unit.interval;
         if t > 0 {
             accum -= t * unit.interval;
-            res.push(Some(format!("{}{}", t, unit.suffix)));
+            res.push(Ok(format!("{}{}", t, unit.suffix)));
         } else {
-            res.push(None);
+            res.push(Err(format!("0{}", unit.suffix)));
         }
     }
     match dur.subsec_millis() {
-        0 => res.push(None),
-        _ => res.push(Some(format!("{}ms", dur.subsec_millis())))
+        0 => res.push(Err("0ms".to_string())),
+        _ => res.push(Ok(format!("{}ms", dur.subsec_millis())))
     }
 
     res
@@ -64,29 +67,32 @@ fn to_time_vec(dur: &Duration) -> Vec<Option<String>> {
 impl MediumEternity for Duration {
     fn humanize(&self) -> String {
         to_time_vec_hms(self).into_iter()
-            .filter(|x| x.is_some())
+            .filter(|x| x.is_ok())
             .map(|x| x.unwrap())
             .collect::<Vec<String>>()
             .join(" ").to_string()
     }
 
     fn robotize(&self) -> String {
-        "bar".to_string()
+        to_time_vec_hms(self).into_iter()
+            .map(unwrap_result)
+            .collect::<Vec<String>>()
+            .join(" ").to_string()
     }
 }
 
-fn to_time_vec_hms(dur: &Duration) -> Vec<Option<String>> {
+fn to_time_vec_hms(dur: &Duration) -> Vec<Result<String, String>> {
     let units = &WHOLE_UNITS[1..4];
 
     let mut accum = dur.as_secs();
-    let mut res: Vec<Option<String>> = Vec::new();
+    let mut res: Vec<Result<String, String>> = Vec::new();
     for unit in units.iter() {
         let t = accum / unit.interval;
         if t > 0 {
             accum -= t * unit.interval;
-            res.push(Some(format!("{}{}", t, unit.suffix)));
+            res.push(Ok(format!("{}{}", t, unit.suffix)));
         } else {
-            res.push(None);
+            res.push(Err(format!("0{}", unit.suffix)));
         }
     }
 
@@ -209,7 +215,7 @@ mod tests {
         #[test]
         fn secs() {
             let duration = Duration::from_secs(21);
-            let exp = vec![None, None, None, Some("21s".to_string()), None];
+            let exp = vec![Err("0d".to_string()), Err("0h".to_string()), Err("0m".to_string()), Ok("21s".to_string()), Err("0ms".to_string())];
             assert_eq!(exp, to_time_vec(&duration));
         }
 
@@ -221,9 +227,16 @@ mod tests {
         }
 
         #[test]
+        fn secs_bot() {
+            let duration = Duration::from_secs(21);
+            let exp = "0d 0h 0m 21s 0ms";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn mins() {
             let duration = Duration::from_secs(184);
-            let exp = vec![None, None, Some("3m".to_string()), Some("4s".to_string()), None];
+            let exp = vec![Err("0d".to_string()), Err("0h".to_string()), Ok("3m".to_string()), Ok("4s".to_string()), Err("0ms".to_string())];
             assert_eq!(exp, to_time_vec(&duration));
         }
 
@@ -235,9 +248,16 @@ mod tests {
         }
 
         #[test]
+        fn mins_bot() {
+            let duration = Duration::from_secs(184);
+            let exp = "0d 0h 3m 4s 0ms";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn hours() {
             let duration = Duration::from_secs(3672);
-            let exp = vec![None, Some("1h".to_string()), Some("1m".to_string()), Some("12s".to_string()), None];
+            let exp = vec![Err("0d".to_string()), Ok("1h".to_string()), Ok("1m".to_string()), Ok("12s".to_string()), Err("0ms".to_string())];
             assert_eq!(exp, to_time_vec(&duration));
         }
 
@@ -249,9 +269,16 @@ mod tests {
         }
 
         #[test]
+        fn hours_bot() {
+            let duration = Duration::from_secs(3672);
+            let exp = "0d 1h 1m 12s 0ms";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn days() {
             let duration = Duration::from_secs((24 * 3600) + 3672);
-            let exp = vec![Some("1d".to_string()), Some("1h".to_string()), Some("1m".to_string()), Some("12s".to_string()), None];
+            let exp = vec![Ok("1d".to_string()), Ok("1h".to_string()), Ok("1m".to_string()), Ok("12s".to_string()), Err("0ms".to_string())];
             assert_eq!(exp, to_time_vec(&duration));
         }
 
@@ -260,6 +287,13 @@ mod tests {
             let duration = Duration::from_secs((24 * 3600) + 3672);
             let exp = "1d 1h 1m 12s";
             assert_eq!(exp, &duration.humanize());
+        }
+
+        #[test]
+        fn days_bot() {
+            let duration = Duration::from_secs((24 * 3600) + 3672);
+            let exp = "1d 1h 1m 12s 0ms";
+            assert_eq!(exp, &duration.robotize());
         }
     }
 
@@ -270,7 +304,7 @@ mod tests {
         #[test]
         fn secs() {
             let duration = Duration::from_secs(21);
-            let exp = vec![None, None, Some("21s".to_string())];
+            let exp = vec![Err("0h".to_string()), Err("0m".to_string()), Ok("21s".to_string())];
             assert_eq!(exp, to_time_vec_hms(&duration));
         }
 
@@ -282,9 +316,16 @@ mod tests {
         }
 
         #[test]
+        fn secs_bot() {
+            let duration = Duration::from_secs(21);
+            let exp = "0h 0m 21s";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn mins() {
             let duration = Duration::from_secs(184);
-            let exp = vec![None, Some("3m".to_string()), Some("4s".to_string())];
+            let exp = vec![Err("0h".to_string()), Ok("3m".to_string()), Ok("4s".to_string())];
             assert_eq!(exp, to_time_vec_hms(&duration));
         }
 
@@ -296,9 +337,16 @@ mod tests {
         }
 
         #[test]
+        fn mins_bot() {
+            let duration = Duration::from_secs(184);
+            let exp = "0h 3m 4s";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn hours() {
             let duration = Duration::from_secs(3672);
-            let exp = vec![Some("1h".to_string()), Some("1m".to_string()), Some("12s".to_string())];
+            let exp = vec![Ok("1h".to_string()), Ok("1m".to_string()), Ok("12s".to_string())];
             assert_eq!(exp, to_time_vec_hms(&duration));
         }
 
@@ -310,9 +358,16 @@ mod tests {
         }
 
         #[test]
+        fn hours_bot() {
+            let duration = Duration::from_secs(3672);
+            let exp = "1h 1m 12s";
+            assert_eq!(exp, &duration.robotize());
+        }
+
+        #[test]
         fn days() {
             let duration = Duration::from_secs((24 * 3600) + 3672);
-            let exp = vec![Some("25h".to_string()), Some("1m".to_string()), Some("12s".to_string())];
+            let exp = vec![Ok("25h".to_string()), Ok("1m".to_string()), Ok("12s".to_string())];
             assert_eq!(exp, to_time_vec_hms(&duration));
         }
 
@@ -321,6 +376,13 @@ mod tests {
             let duration = Duration::from_secs((24 * 3600) + 3672);
             let exp = "25h 1m 12s";
             assert_eq!(exp, &duration.humanize());
+        }
+
+        #[test]
+        fn days_bot() {
+            let duration = Duration::from_secs((24 * 3600) + 3672);
+            let exp = "25h 1m 12s";
+            assert_eq!(exp, &duration.robotize());
         }
     }
 
