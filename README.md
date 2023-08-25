@@ -30,3 +30,11 @@ println!("{}", &duration.humanize());
 println!("{}", &duration.robotize());
 => 0d 0h 2m 7s 0ms
 ```
+
+## Tests
+
+`cargo test`
+
+## Benchmarking
+
+`cargo bench`
